@@ -63,6 +63,7 @@ def receiveOnePing(icmpSocket, ID, timeout):
         if timeLeft <= 0:
             return "Request timed out.", None
 
+
 def sendOnePing(icmpSocket, destAddr, ID):
     myChecksum = 0
     header = struct.pack("bbHHh", ICMP_ECHO_REQUEST, 0, myChecksum, ID, 1)
@@ -72,6 +73,7 @@ def sendOnePing(icmpSocket, destAddr, ID):
     header = struct.pack("bbHHh", ICMP_ECHO_REQUEST, 0, socket.htons(myChecksum), ID, 1)
     packet = header + data
     icmpSocket.sendto(packet, (destAddr, 1))
+
 
 def doOnePing(destAddr, timeout):
     icmp = socket.getprotobyname("icmp")
@@ -85,31 +87,35 @@ def doOnePing(destAddr, timeout):
     icmpSocket.close()
     return delay, ttl
 
+
 def ping(host, timeout=1, count=4):
     destAddr = socket.gethostbyname(host)
-    packetSize = struct.calcsize("d")
-    
+    packetSize = struct.calcsize("bbHHh") + struct.calcsize("d")
+
     print(f"Pinging {host} [{destAddr}] with {packetSize} bytes of data:")
 
     responses = []
 
     for _ in range(count):
         delay, ttl = doOnePing(destAddr, timeout)
-        
+
         if isinstance(delay, float):
             delay_ms = delay * 1000
             responses.append(delay_ms)
-            print(f"Reply from {destAddr}: bytes={packetSize} time={delay_ms:.2f}ms TTL={ttl}")  
+            print(f"Reply from {destAddr}: bytes={packetSize} RRT={delay_ms:.2f}ms TTL={ttl}")
         else:
             print(f"Reply from {destAddr}: {delay}")
 
         time.sleep(1)
 
     # Printing the statistics
-    print("\n{} packets transmitted, {} received, {}% packet loss".format(count, len(responses), ((count-len(responses))/count)*100))
-    
+    print("\n{} packets transmitted, {} received, {}% packet loss".format(count, len(responses),
+                                                                           ((count - len(responses)) / count) * 100))
+
     if responses:
-        print("Round-trip min/avg/max = {:.2f}/{:.2f}/{:.2f} ms".format(min(responses), sum(responses)/len(responses), max(responses)))
+        print("Round-trip min/avg/max = {:.2f}/{:.2f}/{:.2f} ms".format(min(responses), sum(responses) / len(responses),
+                                                                        max(responses)))
+
 
 if __name__ == '__main__':
     ping("lancaster.ac.uk")
