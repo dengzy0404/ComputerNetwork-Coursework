@@ -1,115 +1,153 @@
-import socket
 import os
-import sys
 import struct
 import time
 import select
-import binascii  
+import socket
+
+ICMP_ECHO_REQUEST = 8  # ICMP type code for echo request messages
+ICMP_ECHO_REPLY = 0  # ICMP type code for echo reply messages
+ICMP_Type_Unreachable = 11  # unacceptable host
+ICMP_Type_Overtime = 3  # request overtime
+ID = 0  # ID of icmp_header
+SEQUENCE = 0  # sequence of ping_request_msg
 
 
-ICMP_ECHO_REQUEST = 8 #ICMP type code for echo request messages
-ICMP_ECHO_REPLY = 0 #ICMP type code for echo reply messages
-
-
-def checksum(string): 
+def checksum(strings):
     csum = 0
-    countTo = (len(string) // 2) * 2  
+    countTo = (len(strings) // 2) * 2
     count = 0
-
     while count < countTo:
-        thisVal = string[count+1] * 256 + string[count]
-        csum = csum + thisVal 
-        csum = csum & 0xffffffff  
+        thisVal = strings[count + 1] * 256 + strings[count]
+        csum = csum + thisVal
+        csum = csum & 0xffffffff
         count = count + 2
-    
-    if countTo < len(string):
-        csum = csum + string[len(string) - 1]
-        csum = csum & 0xffffffff 
-    
+    if countTo < len(strings):
+        csum = csum + strings[len(strings) - 1]
+        csum = csum & 0xffffffff
     csum = (csum >> 16) + (csum & 0xffff)
     csum = csum + (csum >> 16)
-    answer = ~csum 
-    answer = answer & 0xffff 
+    answer = ~csum
+    answer = answer & 0xffff
     answer = answer >> 8 | (answer << 8 & 0xff00)
-
-    answer = socket.htons(answer)
-
     return answer
 
+
 def receiveOnePing(icmpSocket, ID, timeout):
-    timeLeft = timeout
-    while True:
-        startedSelect = time.time()
-        whatReady = select.select([icmpSocket], [], [], timeLeft)
-        howLongInSelect = (time.time() - startedSelect)
-        if whatReady[0] == []:  # Timeout
-            return "Request timed out.", None
+    timeBeginReceive = time.time()
+    whatReady = select.select([icmpSocket], [], [], timeout)
+    timeInRecev = time.time() - timeBeginReceive
 
-        timeReceived = time.time()
-        recPacket, addr = icmpSocket.recvfrom(1024)
+    if not whatReady[0]:
+        return -1  # Timeout
 
-        # Get the TTL from the IP header
-        ttl = struct.unpack("!B", recPacket[8:9])[0]
+    timeReceived = time.time()
+    recPacket, addr = icmpSocket.recvfrom(1024)
 
-        icmpHeader = recPacket[20:28]
-        type, code, checksum, packetID, sequence = struct.unpack("bbHHh", icmpHeader)
+    byte_in_double = struct.calcsize("!d")
+    timeSent = struct.unpack("!d", recPacket[28: 28 + byte_in_double])[0]
+    totalDelay = timeReceived - timeSent
 
-        if packetID == ID:
-            bytesInDouble = struct.calcsize("d")
-            timeSent = struct.unpack("d", recPacket[28:28 + bytesInDouble])[0]
-            return timeReceived - timeSent, ttl
+    rec_header = recPacket[20:28]
+    replyType, replyCode, replyCkecksum, replyId, replySequence = struct.unpack('!bbHHh', rec_header)
 
-        timeLeft = timeLeft - howLongInSelect
-        if timeLeft <= 0:
-            return "Request timed out.", None
+    if ID == replyId and replyType == ICMP_ECHO_REPLY:
+        return totalDelay
+    elif timeInRecev > timeout or replyType == ICMP_Type_Overtime:
+        return -3  # ttl overtime/timeout
+    elif replyType == ICMP_Type_Unreachable:
+        return -11  # unreachable
+    else:
+        print("Request over time")
+        return -1
 
-def sendOnePing(icmpSocket, destAddr, ID):
-    myChecksum = 0
-    header = struct.pack("bbHHh", ICMP_ECHO_REQUEST, 0, myChecksum, ID, 1)
-    data = struct.pack("d", time.time())
-    myChecksum = checksum(header + data)
 
-    header = struct.pack("bbHHh", ICMP_ECHO_REQUEST, 0, socket.htons(myChecksum), ID, 1)
-    packet = header + data
-    icmpSocket.sendto(packet, (destAddr, 1))
+def sendOnePing(icmpSocket, destinationAddress, ID):
+    icmp_checksum = 0
 
-def doOnePing(destAddr, timeout):
-    icmp = socket.getprotobyname("icmp")
-    icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_RAW, icmp)
+    icmp_header = struct.pack('!bbHHh', ICMP_ECHO_REQUEST, 0, icmp_checksum, ID, SEQUENCE)
+    time_send = struct.pack('!d', time.time())
 
-    myID = os.getpid() & 0xFFFF  # Return the current process i
+    icmp_checksum = checksum(icmp_header + time_send)
+    icmp_header = struct.pack('!bbHHh', ICMP_ECHO_REQUEST, 0, icmp_checksum, ID, SEQUENCE)
 
-    sendOnePing(icmpSocket, destAddr, myID)
-    delay, ttl = receiveOnePing(icmpSocket, myID, timeout)
+    icmp_packet = icmp_header + time_send
+    icmpSocket.sendto(icmp_packet, (destinationAddress, 80))
 
-    icmpSocket.close()
-    return delay, ttl
 
-def ping(host, timeout=1, count=4):
-    destAddr = socket.gethostbyname(host)
-    packetSize = struct.calcsize("d")
-    
-    print(f"Pinging {host} [{destAddr}] with {packetSize} bytes of data:")
+def doOnePing(destinationAddress, timeout):
+    icmpName = socket.getprotobyname('icmp')
+    icmp_Socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, icmpName)
 
-    responses = []
+    sendOnePing(icmp_Socket, destinationAddress, ID)
+    totalDelay = receiveOnePing(icmp_Socket, ID, timeout)
 
-    for _ in range(count):
-        delay, ttl = doOnePing(destAddr, timeout)
-        
-        if isinstance(delay, float):
-            delay_ms = delay * 1000
-            responses.append(delay_ms)
-            print(f"Reply from {destAddr}: bytes={packetSize} time={delay_ms:.2f}ms TTL={ttl}")  
-        else:
-            print(f"Reply from {destAddr}: {delay}")
+    icmp_Socket.close()
 
-        time.sleep(1)
+    return totalDelay
 
-    # Printing the statistics
-    print("\n{} packets transmitted, {} received, {}% packet loss".format(count, len(responses), ((count-len(responses))/count)*100))
-    
-    if responses:
-        print("Round-trip min/avg/max = {:.2f}/{:.2f}/{:.2f} ms".format(min(responses), sum(responses)/len(responses), max(responses)))
+
+def ping(host, count=4, timeout=1):
+    send = 0
+    lost = 0
+    receive = 0
+    maxTime = 0
+    minTime = float('inf')
+    sumTime = 0
+    delay_times = []
+
+    desIp = socket.gethostbyname(host)
+    global ID
+    ID = os.getpid()
+
+    print(f"Pinging {host} [{desIp}]:")
+
+    try:
+        for i in range(count):
+            global SEQUENCE
+            SEQUENCE = i
+            delay = doOnePing(desIp, timeout) * 1000
+            send += 1
+
+            if delay > 0:
+                receive += 1
+                if maxTime < delay:
+                    maxTime = delay
+                if minTime > delay:
+                    minTime = delay
+                sumTime += delay
+                delay_times.append(delay)
+                print("Receive from: " + str(desIp) + ", delay = " + str(int(delay)) + "ms")
+            else:
+                lost += 1
+                print("Fail to connect. ", end="")
+                if delay == -11:
+                    print("Target net/host/port/protocol is unreachable.")
+                elif delay == -3:
+                    print("Request overtime.")
+                else:
+                    print("Request overtime.")
+            time.sleep(1)
+
+    except KeyboardInterrupt:
+        print("\nPing tool terminated by user.")
+
+    if receive != 0:
+        avgTime = sumTime / receive
+        packet_loss = lost / send * 100.0
+        print("\nSend: {0}, success: {1}, lost: {2}, packet loss: {3}%.".format(send, receive, lost, packet_loss))
+        print("MaxTime = {0}ms, MinTime = {1}ms, AvgTime = {2}ms".format(int(maxTime), int(minTime), int(avgTime)))
+    else:
+        print("\nSend: {0}, success: {1}, lost: {2}, packet loss: 0.0%".format(send, receive, lost))
+
 
 if __name__ == '__main__':
-    ping("lancaster.ac.uk")
+    while True:
+        try:
+            hostName = input("Input ip/name of the host you want: ")
+            count = int(input("How many times you want to detect (default is 4): ") or 4)
+            timeout = int(input("Input timeout (default is 1): ") or 1)
+            ping(hostName, count, timeout)
+            break
+        except Exception as e:
+            print(e)
+            continue
