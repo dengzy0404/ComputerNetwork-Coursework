@@ -25,14 +25,14 @@ TRIES = 3  # detect 3 times
 # checksum
 def check_sum(strings):
     csum = 0
-    countTo = (len(strings) / 2) * 2
+    count_to = (len(strings) / 2) * 2
     count = 0
-    while count < countTo:
-        thisVal = strings[count + 1] * 256 + strings[count]
-        csum = csum + thisVal
+    while count < count_to:
+        this_val = strings[count + 1] * 256 + strings[count]
+        csum = csum + this_val
         csum = csum & 0xffffffff
         count = count + 2
-    if countTo < len(strings):
+    if count_to < len(strings):
         csum = csum + strings[len(strings) - 1]
         csum = csum & 0xffffffff
     csum = (csum >> 16) + (csum & 0xffff)
@@ -47,7 +47,7 @@ def check_sum(strings):
 def get_host_info(host_addr):
     try:
         host_info = socket.gethostbyaddr(host_addr)
-    except socket.error as e:
+    except socket.error:
         display = '{0}'.format(host_addr)
     else:
         display = '{0} ({1})'.format(host_addr, host_info[0])
@@ -79,64 +79,91 @@ def build_packet():
     return ip_package
 
 
+def create_icmp_socket(ttl):
+    icmp_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.getprotobyname("icmp"))
+    icmp_socket.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, struct.pack('I', ttl))
+    icmp_socket.settimeout(TIMEOUT)
+    return icmp_socket
+
+
+def send_icmp_packet(icmp_socket, hostname):
+    icmp_package = build_packet()
+    icmp_socket.sendto(icmp_package, (hostname, 0))
+
+
+def receive_icmp_response(icmp_socket):
+    try:
+        ip_package, ip_info = icmp_socket.recvfrom(1024)
+        return ip_package, ip_info
+    except socket.timeout:
+        return b'', None
+
+
+def process_icmp_response(ip_package, ip_info):
+    icmp_header = ip_package[20:28]
+    after_type, _, _, _, _ = struct.unpack("bbHHh", icmp_header)
+    output = get_host_info(ip_info[0])
+
+    if after_type == TYPE_ICMP_UNREACHED:
+        print("Wrong! unreached net/host/port!")
+        return True
+    elif after_type == TYPE_ICMP_OVERTIME:
+        print(f" {output}")
+        return False
+    elif after_type == 0:
+        print(f" {output}\nprogram run over!")
+        return True
+
+
+def print_response_time(during_time):
+    print("    *    " if during_time >= TIMEOUT or during_time == 0
+          else " {:>4.0f} ms ".format(during_time * 1000), end="")
+
+
+def detect_and_print_response(icmp_socket):
+    try:
+        ip_package, ip_info = icmp_socket.recvfrom(1024)
+    except socket.timeout:
+        print(" request time out")
+        return None, None
+    return ip_package, ip_info
+
+
 def main(hostname):
-    print("routing {0}[{1}](max hops = 30, detect tries = 3)".format(hostname, socket.gethostbyname(hostname)))
+    print(f"routing {hostname}[{socket.gethostbyname(hostname)}](max hops = 30, detect tries = 3)")
+
     for ttl in range(1, MAX_HOPS):
-        print("%2d" % ttl, end="")
-        for tries in range(0, TRIES):
-            # create raw socket
-            icmp_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.getprotobyname("icmp"))
-            icmp_socket.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, struct.pack('I', ttl))
-            icmp_socket.settimeout(TIMEOUT)
-            # construct datagram
-            icmp_package = build_packet()
-            icmp_socket.sendto(icmp_package, (hostname, 0))
-            # waiting for receiving reply
+        print(f"{ttl:2d}", end="")
+        for tries in range(TRIES):
+            icmp_socket = create_icmp_socket(ttl)
+
+            send_icmp_packet(icmp_socket, hostname)
+
             start_time = time.time()
             select.select([icmp_socket], [], [], TIMEOUT)
             end_time = time.time()
-            # compute time of receiving
             during_time = end_time - start_time
-            if during_time >= TIMEOUT or during_time == 0:
-                print("    *    ", end="")
-            else:
-                print(" %4.0f ms " % (during_time * 1000), end="")
-            if tries >= TRIES - 1:
-                try:
-                    ip_package, ip_info = icmp_socket.recvfrom(1024)
-                except socket.timeout:
-                    print(" request time out")
-                else:
-                    # extract ICMP header from IP datagram
-                    icmp_header = ip_package[20:28]
 
-                    # unpack ICMP header
-                    after_type, after_code, after_checksum, after_id, after_sequence = struct.unpack("bbHHh",
-                                                                                                     icmp_header)
-                    output = get_host_info(ip_info[0])
+            print_response_time(during_time)
 
-                    if after_type == TYPE_ICMP_UNREACHED:  # unreachable
-                        print("Wrong!unreached net/host/port!")
-                        break
-                    elif after_type == TYPE_ICMP_OVERTIME:  # ttl overtimr
-                        print(" %s" % output)
-                        continue
-                    elif after_type == 0:  # type_echo
-                        print(" %s" % output)
-                        print("program run over!")
-                        return
-                    else:
-                        print("request timeout")
-                        print("program run wrongly!")
+            if tries == TRIES - 1:
+                ip_package, ip_info = detect_and_print_response(icmp_socket)
+                if ip_info is not None:
+                    if process_icmp_response(ip_package, ip_info):
                         return
 
 
 if __name__ == "__main__":
+    TIMEOUT = 2.0  # default timeout
+
     while True:
         try:
-            ip = input("please input a ip address:")
-            global TIMEOUT
-            TIMEOUT = float(input("Input timeout you want (in second): "))
+            ip = input("Please input an IP address: ")
+            timeout_input = input("Input timeout you want (in seconds): ")
+
+            if timeout_input:
+                TIMEOUT = float(timeout_input)
+
             main(ip)
             break
         except Exception as e:

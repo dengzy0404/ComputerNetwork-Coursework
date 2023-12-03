@@ -1,5 +1,5 @@
-import os
 import socket
+
 
 def send_request(host, port, path="/"):
     # Create a TCP socket for the client
@@ -20,6 +20,7 @@ def send_request(host, port, path="/"):
 
     # Close the socket connection
     client_socket.close()
+
 
 if __name__ == "__main__":
     # Set the default server IP address
