@@ -1,6 +1,6 @@
 HTTP/1.1 301 Moved Permanently
 Server: CLOUD ELB 1.0.0
-Date: Sun, 03 Dec 2023 12:07:59 GMT
+Date: Sun, 03 Dec 2023 12:35:00 GMT
 Content-Type: text/html
 Content-Length: 182
 Connection: keep-alive
@@ -8,10 +8,10 @@ Location: https://www.zhihu.com/
 X-Backend-Response: 0.000
 Vary: Accept-Encoding
 Referrer-Policy: no-referrer-when-downgrade
-X-SecNG-Response: 0.0010001659393311
-x-lb-timing: 0.002
+X-SecNG-Response: 0.0019998550415039
+x-lb-timing: 0.003
 x-idc-id: 2
-Set-Cookie: KLBRSID=d6f775bb0765885473b0cba3a5fa9c12|1701605279|1701605279; Path=/
+Set-Cookie: KLBRSID=dc02df4a8178e8c4dfd0a3c8cbd8c726|1701606900|1701606900; Path=/
 
 <html>
 <head><title>301 Moved Permanently</title></head>

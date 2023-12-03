@@ -77,6 +77,9 @@ def start_proxy(port_num):
 
 
 if __name__ == '__main__':
+    # Initialize port variable
+    port = None
+
     # Get user input for the port number
     while True:
         try:
@@ -90,5 +93,6 @@ if __name__ == '__main__':
                 continue
             else:
                 break
+
     # Start the proxy server
     start_proxy(port)
