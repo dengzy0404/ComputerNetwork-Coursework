@@ -146,7 +146,7 @@ if __name__ == '__main__':
         try:
             hostName = input("Input ip/name of the host you want: ")
             count_input = int(input("How many times you want to detect (default is 4): ") or 4)
-            timeout_input = float(input("Input timeout in second (default is 1): ") or 1)
+            timeout_input = float(input("Input timeout in seconds (default is 1): ") or 1)
             ping(hostName, count_input, timeout_input)
             break
         except Exception as e:
