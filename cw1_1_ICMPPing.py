@@ -87,7 +87,7 @@ def do_one_ping(destination_address, timeout):
     return total_delay
 
 
-def ping(host, count=4, timeout=1):
+def ping(host, count=4, timeout=1.0):
     send = 0
     lost = 0
     receive = 0
@@ -120,20 +120,25 @@ def ping(host, count=4, timeout=1):
             else:
                 print("Fail to connect. " + ("Target net/host/port/protocol is unreachable."
                                              if delay == -11 else "Request overtime."))
+                lost += 1
 
             time.sleep(1)
 
     except KeyboardInterrupt:
         print("\nPing tool terminated by user.")
 
+    if send != 0:
+        packet_loss = (lost / send) * 100.0
+    else:
+        packet_loss = 100.0
+
     if receive != 0:
         avg_time = sum_time / receive
-        packet_loss = lost / send * 100.0
         print("\nSend: {0}, success: {1}, lost: {2}, packet loss: {3:.2f}%.".format(send, receive, lost, packet_loss))
         print("Max time = {0}ms, Min time = {1}ms, Avg time = {2:.2f}ms".format(
             int(max_time), int(min_time), avg_time))
     else:
-        print("\nSend: {0}, Success: {1}, Lost: {2}, Packet loss: 0.0%".format(send, receive, lost))
+        print("\nSend: {0}, Success: {1}, Lost: {2}, Packet loss: {3:.2f}%".format(send, receive, lost, packet_loss))
 
 
 if __name__ == '__main__':
@@ -141,7 +146,7 @@ if __name__ == '__main__':
         try:
             hostName = input("Input ip/name of the host you want: ")
             count_input = int(input("How many times you want to detect (default is 4): ") or 4)
-            timeout_input = int(input("Input timeout (default is 1): ") or 1)
+            timeout_input = float(input("Input timeout in second (default is 1): ") or 1)
             ping(hostName, count_input, timeout_input)
             break
         except Exception as e:
