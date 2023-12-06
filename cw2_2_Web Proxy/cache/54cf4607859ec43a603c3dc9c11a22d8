@@ -1,0 +1,16 @@
+HTTP/1.1 301 Moved Permanently
+Server: Tengine
+Date: Wed, 06 Dec 2023 09:12:11 GMT
+Content-Type: text/html
+Content-Length: 239
+Connection: keep-alive
+Location: https://www.bilibili.com/
+
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+<html>
+<head><title>301 Moved Permanently</title></head>
+<body>
+<center><h1>301 Moved Permanently</h1></center>
+<hr/>Powered by Tengine<hr><center>tengine</center>
+</body>
+</html>

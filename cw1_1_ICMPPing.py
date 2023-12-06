@@ -99,7 +99,7 @@ def ping(host, count=4, timeout=1.0):
     global ID
     ID = os.getpid()
 
-    print(f"Pinging {host} [{des_ip}]:")
+    print(f"\nPinging {host} [{des_ip}]:")
 
     try:
         for i in range(count):
@@ -134,7 +134,9 @@ def ping(host, count=4, timeout=1.0):
 
     if receive != 0:
         avg_time = sum_time / receive
-        print("\nSend: {0}, success: {1}, lost: {2}, packet loss: {3:.2f}%.".format(send, receive, lost, packet_loss))
+        print("\nPing statistics:")
+        print("Send: {0}, Success: {1}, Lost: {2}, Packet loss: {3:.2f}%.".format(send, receive, lost, packet_loss))
+        print("\nEstimated round trip time (in ms):")
         print("Max time = {0}ms, Min time = {1}ms, Avg time = {2:.2f}ms".format(
             int(max_time), int(min_time), avg_time))
     else:

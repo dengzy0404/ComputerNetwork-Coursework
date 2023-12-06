@@ -1,0 +1,5 @@
+HTTP/1.1 302 Found
+content-length: 0
+location: https://www.lancaster.ac.uk/
+cache-control: no-cache
+
