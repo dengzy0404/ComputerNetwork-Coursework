@@ -21,18 +21,18 @@ def handle_req(client_socket):
         response_header = "HTTP/1.1 404 Not Found\r\n" + \
                          "Server: 127.0.0.1\r\n" + "\r\n"
         response_data = response_header + "No such file\nCheck your input\n"
-        content = (response_header + response_data).encode(encoding="UTF-8")  # send the correct HTTP response error
+        response = (response_header + response_data)  # send the correct HTTP response error
     else:
         # If the file is found, read its content
         content = file.read()  # store in temporary buffer
         file.close()
-    # Construct the HTTP response header for a successful request
-    res_header = "HTTP/1.1 200 OK\r\n"
-    file_content01 = "Server: 127.0.0.1\r\n"
-    # Convert the file content to a string
-    file_content02 = content.decode()
-    # Combine the header and file content to form the complete HTTP response
-    response = res_header + file_content01 + "\r\n" + file_content02  # send the correct HTTP response
+        # Construct the HTTP response header for a successful request
+        res_header = "HTTP/1.1 200 OK\r\n"
+        file_content01 = "Server: 127.0.0.1\r\n"
+        # Convert the file content to a string
+        file_content02 = content.decode()
+        # Combine the header and file content to form the complete HTTP response
+        response = res_header + file_content01 + "\r\n" + file_content02  # send the correct HTTP response
     # Send the response back to the client
     client_socket.sendall(response.encode(encoding="UTF-8"))
 
@@ -75,3 +75,4 @@ if __name__ == '__main__':
     port = int(input("Input the port you want (Default is 8000):"))
     # Start the server with the specified IP address and port
     start_server(ipAddr, port)
+    
