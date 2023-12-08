@@ -27,7 +27,7 @@ def handle_req(client_socket):
             client_socket.sendall(response_msg)
         print("Send, done.")
     else:
-        print("File is not in cache. Sending request to server...")
+        print("File is not exist.\nFile is not in cache.\nSending request to server...")
         try:
             # Connect to the destination server
             proxy_client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

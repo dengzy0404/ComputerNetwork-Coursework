@@ -4,26 +4,31 @@ import time
 import select
 import socket
 
+# ICMP message types
 ICMP_ECHO_REQUEST = 8  # ICMP type code for echo request messages
 ICMP_ECHO_REPLY = 0  # ICMP type code for echo reply messages
-ICMP_Type_Unreachable = 11  # unacceptable host
-ICMP_Type_Overtime = 3  # request overtime
-ID = 0  # ID of icmp_header
-SEQUENCE = 0  # sequence of ping_request_msg
-ICMP_HEADER_FORMAT = '!bbHHh'  # format string head for unpack
+ICMP_Type_Unreachable = 11  # ICMP type code for host unreachable
+ICMP_Type_Overtime = 3  # ICMP type code for request timeout
+
+ID = 0  # ID of ICMP header
+SEQUENCE = 0  # Sequence number of ping request message
+ICMP_HEADER_FORMAT = '!bbHHh'  # Format string for unpacking ICMP header
 
 
-def checksum(strings):
+def checksum(data):
+    """
+    Calculate the checksum for the given data.
+    """
     csum = 0
-    count_to = (len(strings) // 2) * 2
+    count_to = (len(data) // 2) * 2
     count = 0
     while count < count_to:
-        this_val = strings[count + 1] * 256 + strings[count]
+        this_val = data[count + 1] * 256 + data[count]
         csum = csum + this_val
         csum = csum & 0xffffffff
         count = count + 2
-    if count_to < len(strings):
-        csum = csum + strings[len(strings) - 1]
+    if count_to < len(data):
+        csum = csum + data[len(data) - 1]
         csum = csum & 0xffffffff
     csum = (csum >> 16) + (csum & 0xffff)
     csum = csum + (csum >> 16)
@@ -34,6 +39,9 @@ def checksum(strings):
 
 
 def receive_one_ping(icmp_socket, timeout):
+    """
+    Receive one ICMP ping reply and calculate the delay.
+    """
     time_begin_receive = time.time()
     what_ready = select.select([icmp_socket], [], [], timeout)
     time_in_rcv = time.time() - time_begin_receive
@@ -54,40 +62,55 @@ def receive_one_ping(icmp_socket, timeout):
     if ID == reply_id and reply_type == ICMP_ECHO_REPLY:
         return total_delay
     elif time_in_rcv > timeout or reply_type == ICMP_Type_Overtime:
-        return -3  # ttl overtime/timeout
+        return -3  # TTL overtime/timeout
     elif reply_type == ICMP_Type_Unreachable:
-        return -11  # unreachable
+        return -11  # Unreachable
     else:
         print("Request over time")
         return -1
 
 
 def send_one_ping(icmp_socket, destination_address):
+    """
+    Send one ICMP ping request.
+    """
     icmp_checksum = 0
 
+    # Create ICMP header
     icmp_header = struct.pack(ICMP_HEADER_FORMAT, ICMP_ECHO_REQUEST, 0, icmp_checksum, ID, SEQUENCE)
     time_send = struct.pack('!d', time.time())
 
+    # Calculate ICMP checksum
     icmp_checksum = checksum(icmp_header + time_send)
     icmp_header = struct.pack(ICMP_HEADER_FORMAT, ICMP_ECHO_REQUEST, 0, icmp_checksum, ID, SEQUENCE)
 
+    # Create ICMP packet
     icmp_packet = icmp_header + time_send
     icmp_socket.sendto(icmp_packet, (destination_address, 80))
 
 
 def do_one_ping(destination_address, timeout):
+    """
+    Perform one round of ICMP ping.
+    """
+    # Create raw ICMP socket
     icmp_name = socket.getprotobyname('icmp')
     icmp_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, icmp_name)
 
+    # Send ping request and receive the response
     send_one_ping(icmp_socket, destination_address)
     total_delay = receive_one_ping(icmp_socket, timeout)
 
+    # Close the ICMP socket
     icmp_socket.close()
 
     return total_delay
 
 
 def ping(host, count=4, timeout=1.0):
+    """
+    Perform multiple rounds of ICMP ping and display statistics.
+    """
     send = 0
     lost = 0
     receive = 0
@@ -95,13 +118,14 @@ def ping(host, count=4, timeout=1.0):
     min_time = float('inf')
     sum_time = 0
 
+    # Get the IP address of the host
     des_ip = socket.gethostbyname(host)
     global ID
     ID = os.getpid()
 
     print(f"\nPinging {host} [{des_ip}]:")
-
     try:
+        # Perform 'count' rounds of ping
         for i in range(count):
             global SEQUENCE
             SEQUENCE = i
@@ -116,10 +140,10 @@ def ping(host, count=4, timeout=1.0):
                 sum_time += delay
 
             if success:
-                print(f"Receive from: {des_ip}, delay = {int(delay)}ms")
+                print(f"Received from: {des_ip}, delay = {int(delay)}ms")
             else:
-                print("Fail to connect. " + ("Target net/host/port/protocol is unreachable."
-                                             if delay == -11 else "Request overtime."))
+                print("Failed to connect. " + ("Target net/host/port/protocol is unreachable."
+                                               if delay == -11 else "Request timeout."))
                 lost += 1
 
             time.sleep(1)
@@ -135,19 +159,18 @@ def ping(host, count=4, timeout=1.0):
     if receive != 0:
         avg_time = sum_time / receive
         print("\nPing statistics:")
-        print("Send: {0}, Success: {1}, Lost: {2}, Packet loss: {3:.2f}%.".format(send, receive, lost, packet_loss))
+        print(f"Send: {send}, Success: {receive}, Lost: {lost}, Packet loss: {packet_loss:.2f}%.")
         print("\nEstimated round trip time (in ms):")
-        print("Max time = {0}ms, Min time = {1}ms, Avg time = {2:.2f}ms".format(
-            int(max_time), int(min_time), avg_time))
+        print(f"Max time = {int(max_time)}ms, Min time = {int(min_time)}ms, Avg time = {avg_time:.2f}ms")
     else:
-        print("\nSend: {0}, Success: {1}, Lost: {2}, Packet loss: {3:.2f}%".format(send, receive, lost, packet_loss))
+        print(f"Send: {send}, Success: {receive}, Lost: {lost}, Packet loss: {packet_loss:.2f}%")
 
 
 if __name__ == '__main__':
     while True:
         try:
-            hostName = input("Input ip/name of the host you want: ")
-            count_input = int(input("How many times you want to detect (default is 4): ") or 4)
+            hostName = input("Input IP/hostname of the host you want to ping: ")
+            count_input = int(input("How many times you want to ping (default is 4): ") or 4)
             timeout_input = float(input("Input timeout in seconds (default is 1): ") or 1)
             ping(hostName, count_input, timeout_input)
             break

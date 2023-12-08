@@ -157,7 +157,7 @@ if __name__ == "__main__":
             if timeout_input:
                 TIMEOUT = float(timeout_input)
 
-            custom_settings = input("Customize MAX_HOPS (Default is 30) and TRIES (Default is 3)? (y/n): ")
+            custom_settings = input("Want to customize MAX_HOPS(Default is 30) and TRIES(Default is 3)? (y/n): ")
             if custom_settings.lower() == 'y':
                 MAX_HOPS = int(input("Enter max hops: "))
                 TRIES = int(input("Enter detect tries: "))
